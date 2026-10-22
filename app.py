@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw
 
 st.set_page_config(page_title="한자 OCR & 독음 변환", layout="centered")
 
-st.title("📱 한자 OCR & 한글음 변환기")
+st.title("📱 한자 음 변환")
 
 # 고용량 이미지 메모리 방지용 자동 축소 함수
 def resize_image(image, max_size=1024):
@@ -59,7 +59,7 @@ if uploaded_file is not None:
 
         if results:
             for bbox, text, prob in results:
-                # 1. 원본 인식 문자열을 잘라내지 않고 그대로 유지 (예: 亭"9|4外(敘事))
+                # 1. 원본 인식 문자열을 잘라내지 않고 그대로 유지  
                 original_text = text.strip()
                 
                 # 2. hanja 라이브러리가 문자열 내부의 실제 한자만 골라서 한글음(독음)으로 자동 변환
