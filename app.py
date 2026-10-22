@@ -1,5 +1,4 @@
 import os
-import re
 import gc
 import torch
 
@@ -50,14 +49,8 @@ if uploaded_file is not None:
         img_np = np.array(pil_image)
 
         with st.spinner("이미지 내 한자를 정밀 스캔하고 있습니다..."):
-            # 감도 조절 파라미터 적용 (한자 누락 방지 및 글자 분리 강화)
-            results = reader.readtext(
-                img_np, 
-                paragraph=False,
-                text_threshold=0.2,   # 글자 인식 민감도 (낮출수록 세밀하게 찾음)
-                link_threshold=0.2,   # 글자 연결 민감도 (낮출수록 글자를 쪼개서 인식)
-                low_text=0.2          # 희미한 글자 감지 신뢰도
-            )
+            # paragraph=False로 설정하여 낱글자/단어 단위 정밀 스캔
+            results = reader.readtext(img_np, paragraph=False)
 
         pure_original_list = []
         pure_korean_list = []
@@ -66,29 +59,28 @@ if uploaded_file is not None:
 
         if results:
             for bbox, text, prob in results:
-                # 1. 스캔된 깨진 문자열 안에서 유니코드 한자([\u4e00-\u9fff])만 연속 추출
-                hanja_chars = re.findall(r'[\u4e00-\u9fff]+', text)
+                # 1. 원본 인식 문자열을 잘라내지 않고 그대로 유지 (예: 亭"9|4外(敘事))
+                original_text = text.strip()
                 
-                if hanja_chars:
-                    found_hanja = "".join(hanja_chars)
-                    pt1 = (int(bbox[0][0]), int(bbox[0][1]))
-                    pt2 = (int(bbox[2][0]), int(bbox[2][1]))
+                # 2. hanja 라이브러리가 문자열 내부의 실제 한자만 골라서 한글음(독음)으로 자동 변환
+                #    한자가 아닌 기호나 깨진 자음/모음은 유지하거나 자연스럽게 처리됨
+                converted_text = hanja.translate(original_text, 'substitution')
 
-                    # 한자 -> 한글 독음 변환
-                    converted_text = hanja.translate(found_hanja, 'substitution')
-                    
-                    pure_original_list.append(found_hanja)
-                    pure_korean_list.append(converted_text)
+                pt1 = (int(bbox[0][0]), int(bbox[0][1]))
+                pt2 = (int(bbox[2][0]), int(bbox[2][1]))
 
-                    # 한자가 감지된 위치에 박스 표시
-                    draw.rectangle([pt1, pt2], outline=(0, 255, 0), width=3)
+                pure_original_list.append(original_text)
+                pure_korean_list.append(converted_text)
+
+                # 인식 위치 박스 표시
+                draw.rectangle([pt1, pt2], outline=(0, 255, 0), width=3)
 
         st.image(pil_image, caption="한자 인식 위치 확인", use_container_width=True)
 
         original_str = " ".join(pure_original_list) if pure_original_list else "인식된 한자가 없습니다."
         korean_str = " ".join(pure_korean_list) if pure_korean_list else "-"
 
-        st.subheader("=== 원본 한자 ===")
+        st.subheader("=== 원본 인식 결과 ===")
         st.code(original_str, language="text")
 
         st.subheader("=== 한글 변환(독음) ===")
