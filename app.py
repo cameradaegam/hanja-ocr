@@ -1,7 +1,7 @@
 import os
 import torch
 
-# PyTorch 메모리 및 스레드 제한 (Streamlit 1GB RAM 초과 방지)
+# PyTorch 메모리 및 스레드 제한 (Streamlit RAM 초과 방지)
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
@@ -16,7 +16,21 @@ st.set_page_config(page_title="한자 OCR", layout="centered")
 
 st.title("📱 한자 OCR & 한글음 변환기")
 
-# EasyOCR 모델 경량 로딩 (quantize=True 및 gpu=False)
+# 1. 고용량 이미지 메모리 방지용 자동 축소 함수
+def resize_image(image, max_size=1024):
+    """이미지의 긴 축이 max_size를 넘지 않도록 안전하게 축소"""
+    width, height = image.size
+    if max(width, height) > max_size:
+        if width > height:
+            new_width = max_size
+            new_height = int(height * (max_size / width))
+        else:
+            new_height = max_size
+            new_width = int(width * (max_size / height))
+        image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    return image
+
+# EasyOCR 모델 경량 로딩
 @st.cache_resource
 def load_ocr():
     return easyocr.Reader(['ch_tra'], gpu=False, quantize=True)
@@ -24,13 +38,17 @@ def load_ocr():
 try:
     reader = load_ocr()
 except Exception as e:
-    st.error(f"OCR 로딩 중 메모리 오류가 발생했습니다: {e}")
+    st.error(f"OCR 로딩 중 오류가 발생했습니다: {e}")
 
 uploaded_file = st.file_uploader("한자 이미지를 선택하거나 직접 촬영하세요", type=["jpg", "jpeg", "png", "webp"])
 
 if uploaded_file is not None:
     try:
+        # 이미지 읽기
         pil_image = Image.open(uploaded_file).convert("RGB")
+        
+        # 스마트폰 고용량 사진을 1024px 이하로 자동 최적화
+        pil_image = resize_image(pil_image, max_size=1024)
         img_np = np.array(pil_image)
 
         with st.spinner("한자를 인식하고 있습니다..."):
@@ -64,7 +82,7 @@ if uploaded_file is not None:
         st.code(kor_str, language="text")
 
     except Exception as e:
-        st.error(f"이미지 처리 오류: {e}")
+        st.error(f"이미지 처리 중 오류가 발생했습니다: {e}")
 
 # 하단 서명
 st.markdown("---")
