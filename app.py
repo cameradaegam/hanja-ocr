@@ -1,3 +1,11 @@
+import os
+import torch
+
+# PyTorch 메모리 및 스레드 제한 (Streamlit 1GB RAM 초과 방지)
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+torch.set_num_threads(1)
+
 import streamlit as st
 import easyocr
 import hanja
@@ -8,15 +16,15 @@ st.set_page_config(page_title="한자 OCR", layout="centered")
 
 st.title("📱 한자 OCR & 한글음 변환기")
 
-# EasyOCR 모델 로딩
+# EasyOCR 모델 경량 로딩 (quantize=True 및 gpu=False)
 @st.cache_resource
 def load_ocr():
-    return easyocr.Reader(['ch_tra'], gpu=False)
+    return easyocr.Reader(['ch_tra'], gpu=False, quantize=True)
 
 try:
     reader = load_ocr()
 except Exception as e:
-    st.error(f"OCR 로딩 오류: {e}")
+    st.error(f"OCR 로딩 중 메모리 오류가 발생했습니다: {e}")
 
 uploaded_file = st.file_uploader("한자 이미지를 선택하거나 직접 촬영하세요", type=["jpg", "jpeg", "png", "webp"])
 
@@ -56,8 +64,8 @@ if uploaded_file is not None:
         st.code(kor_str, language="text")
 
     except Exception as e:
-        st.error(f"처리 중 오류 발생: {e}")
+        st.error(f"이미지 처리 오류: {e}")
 
-# --- 하단 서명 ---
+# 하단 서명
 st.markdown("---")
 st.markdown("<h4 style='text-align: center; color: #888888;'>- 카메라대감 -</h4>", unsafe_allow_html=True)
