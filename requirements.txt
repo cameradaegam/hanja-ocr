@@ -1,8 +1,7 @@
---find-links https://download.pytorch.org/whl/cpu/torch_stable.html
-torch==2.0.1+cpu
-torchvision==0.15.2+cpu
 streamlit
 easyocr
 hanja
 pillow
 numpy
+torch>=2.0.0
+torchvision>=0.15.0
