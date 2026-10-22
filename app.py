@@ -3,7 +3,7 @@ import re
 import gc
 import torch
 
-# PyTorch 스레드 단일화 (Streamlit Cloud 1GB RAM 제한 준수)
+# PyTorch 메모리 및 스레드 제한 (Streamlit RAM 1GB 초과 방지)
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
@@ -31,7 +31,7 @@ def resize_image(image, max_size=1024):
         image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
     return image
 
-# EasyOCR 번체 한자 모델 캐싱
+# EasyOCR 번체 한자 전용 모델 단일 캐싱
 @st.cache_resource
 def load_ocr():
     return easyocr.Reader(['ch_tra'], gpu=False, quantize=True)
@@ -39,7 +39,7 @@ def load_ocr():
 try:
     reader = load_ocr()
 except Exception as e:
-    st.error(f"OCR 모델을 로드하는 중 오류가 발생했습니다: {e}")
+    st.error(f"OCR 로딩 중 오류가 발생했습니다: {e}")
 
 uploaded_file = st.file_uploader("한자 이미지를 선택하거나 직접 촬영하세요", type=["jpg", "jpeg", "png", "webp"])
 
@@ -49,7 +49,8 @@ if uploaded_file is not None:
         pil_image = resize_image(pil_image, max_size=1024)
         img_np = np.array(pil_image)
 
-        with st.spinner("이미지를 분석하고 있습니다..."):
+        with st.spinner("이미지 내 한자를 정밀 스캔하고 있습니다..."):
+            # paragraph=False로 설정하여 낱글자/단어 단위 정밀 스캔
             results = reader.readtext(img_np, paragraph=False)
 
         pure_original_list = []
@@ -59,7 +60,7 @@ if uploaded_file is not None:
 
         if results:
             for bbox, text, prob in results:
-                # 텍스트 내 유니코드 한자 영역만 선별 추출
+                # 스캔된 문자열에서 유니코드 한자([\u4e00-\u9fff])만 정규식으로 필터링
                 hanja_chars = re.findall(r'[\u4e00-\u9fff]', text)
                 
                 if hanja_chars:
@@ -67,14 +68,16 @@ if uploaded_file is not None:
                     pt1 = (int(bbox[0][0]), int(bbox[0][1]))
                     pt2 = (int(bbox[2][0]), int(bbox[2][1]))
 
+                    # 한자 -> 한글 독음 변환
                     converted_text = hanja.translate(found_hanja, 'substitution')
                     
                     pure_original_list.append(found_hanja)
                     pure_korean_list.append(converted_text)
 
+                    # 한자가 인식된 영역만 초록색 박스로 표시
                     draw.rectangle([pt1, pt2], outline=(0, 255, 0), width=3)
 
-        st.image(pil_image, caption="인식 위치 확인", use_container_width=True)
+        st.image(pil_image, caption="한자 인식 위치 확인", use_container_width=True)
 
         original_str = " ".join(pure_original_list) if pure_original_list else "인식된 한자가 없습니다."
         korean_str = " ".join(pure_korean_list) if pure_korean_list else "-"
@@ -85,7 +88,7 @@ if uploaded_file is not None:
         st.subheader("=== 한글 변환(독음) ===")
         st.code(korean_str, language="text")
 
-        # 메모리 정리
+        # 메모리 청소
         del img_np
         gc.collect()
 
