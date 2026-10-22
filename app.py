@@ -3,7 +3,7 @@ import re
 import gc
 import torch
 
-# PyTorch 메모리 및 스레드 제한 (Streamlit RAM 1GB 초과 방지)
+# PyTorch 스레드 단일화 (Streamlit 1GB RAM 제한 준수)
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
@@ -50,8 +50,14 @@ if uploaded_file is not None:
         img_np = np.array(pil_image)
 
         with st.spinner("이미지 내 한자를 정밀 스캔하고 있습니다..."):
-            # paragraph=False로 설정하여 낱글자/단어 단위 정밀 스캔
-            results = reader.readtext(img_np, paragraph=False)
+            # 감도 조절 파라미터 적용 (한자 누락 방지 및 글자 분리 강화)
+            results = reader.readtext(
+                img_np, 
+                paragraph=False,
+                text_threshold=0.2,   # 글자 인식 민감도 (낮출수록 세밀하게 찾음)
+                link_threshold=0.2,   # 글자 연결 민감도 (낮출수록 글자를 쪼개서 인식)
+                low_text=0.2          # 희미한 글자 감지 신뢰도
+            )
 
         pure_original_list = []
         pure_korean_list = []
@@ -60,8 +66,8 @@ if uploaded_file is not None:
 
         if results:
             for bbox, text, prob in results:
-                # 스캔된 문자열에서 유니코드 한자([\u4e00-\u9fff])만 정규식으로 필터링
-                hanja_chars = re.findall(r'[\u4e00-\u9fff]', text)
+                # 1. 스캔된 깨진 문자열 안에서 유니코드 한자([\u4e00-\u9fff])만 연속 추출
+                hanja_chars = re.findall(r'[\u4e00-\u9fff]+', text)
                 
                 if hanja_chars:
                     found_hanja = "".join(hanja_chars)
@@ -74,7 +80,7 @@ if uploaded_file is not None:
                     pure_original_list.append(found_hanja)
                     pure_korean_list.append(converted_text)
 
-                    # 한자가 인식된 영역만 초록색 박스로 표시
+                    # 한자가 감지된 위치에 박스 표시
                     draw.rectangle([pt1, pt2], outline=(0, 255, 0), width=3)
 
         st.image(pil_image, caption="한자 인식 위치 확인", use_container_width=True)
@@ -88,7 +94,7 @@ if uploaded_file is not None:
         st.subheader("=== 한글 변환(독음) ===")
         st.code(korean_str, language="text")
 
-        # 메모리 청소
+        # 메모리 정리
         del img_np
         gc.collect()
 
