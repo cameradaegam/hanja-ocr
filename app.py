@@ -56,3 +56,9 @@ if uploaded_file is not None:
 
     st.subheader("=== 한글변환 ===")
     st.code(kor_str, language="text")
+
+st.markdown("---")
+st.markdown(
+    "<h4 style='text-align: center; color: #888888;'>- 카메라대감 -</h4>", 
+    unsafe_allow_html=True
+)
